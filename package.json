@@ -4,7 +4,8 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "start": "gulp browser-sync",
+    "build": "gulp clean && NODE_ENV=production gulp"
   },
   "author": "KGD",
   "license": "ISC",
