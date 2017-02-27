@@ -3,7 +3,6 @@
 d3.json("../assets/world_countries.json", draw);
 
 function draw(geo_data) {
-  "use strict";
 
   var margin = 75,
       width = 1400 - margin,
@@ -13,14 +12,7 @@ function draw(geo_data) {
 
   var svg = d3.select("body").append("svg").attr("width", width + margin).attr("height", height + margin).append('g').attr('class', 'map');
 
-  var years = [];
-
-  for (var i = 1930; i < 2015; i += 4) {
-    if (i !== 1942 && i !== 1946) {
-      years.push(i);
-    }
-    ;
-  }
+  var years = getYears(1930, 2015, 4, [1942, 1946]);
 
   var projection = d3.geo.mercator().scale(140).translate([width / 2, height / 1.2]);
 
@@ -139,7 +131,7 @@ function draw(geo_data) {
           update(d);
         });
       }
-    }, 1000);
+    }, 100);
   }
 
   var format = d3.time.format("%d-%m-%Y (%H:%M h)");
@@ -149,4 +141,15 @@ function draw(geo_data) {
     d['date'] = format.parse(d['date']);
     return d;
   }, plot_points);
+}
+
+// separated pure functions
+function getYears(start, end, step, except) {
+  let years = [];
+  let year = start;
+  while(year <= end) {
+    if (except.indexOf(year) < 0) years.push(year);
+    year += step;
+  }
+  return years;
 }
