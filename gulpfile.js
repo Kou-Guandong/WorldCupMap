@@ -2,54 +2,132 @@ require('dotenv').config({silent: true});
 const path = require('path');
 const del = require('del');
 const gulp = require('gulp');
-const gutil = require('gulp-util');
-const plumber = require('gulp-plumber');
+const concat = require('gulp-concat');
 const eslint = require('gulp-eslint');
 const cssnano = require('gulp-cssnano');
 const babel = require('gulp-babel');
 const uglify = require('gulp-uglify');
+const sourcemaps = require('gulp-sourcemaps');
 const minifyHtml = require('gulp-htmlmin');
 const postcss = require('gulp-postcss');
 const autoprefixer = require('autoprefixer');
 const browserSync = require('browser-sync').create();
 const assetsInjector = require('gulp-assets-injector')();
 const sass = require('gulp-sass');
+const runSequence = require('run-sequence');
+const rev = require('gulp-rev');
+const streamqueue = require('streamqueue');
+var revCollector = require('gulp-rev-collector');
+var revReplace = require('gulp-rev-collector');
 
+// Config Environment
 const DIST = 'dist';
 const isProd = process.env.NODE_ENV === 'production';
 
+let serverPath = './src';
+
+if (isProd) {
+  serverPath = './dist'
+}
+
+// delete 'dist' directory
 gulp.task('clean', () => del(DIST));
 
-gulp.task('css', () => {
-  let stream = gulp.src('src/**/*.scss', {base: 'src'})
-    .pipe(plumber(logError))
-    .pipe(sass({importer: importModuleSass}))
-    .pipe(postcss([autoprefixer()]));
-if (isProd) stream = stream
-  .pipe(cssnano());
-stream = stream
-  .pipe(assetsInjector.collect())
-  .pipe(gulp.dest(DIST));
-if (!isProd) stream = stream
-  .pipe(browserSync.stream());
-return stream;
-});
-
-gulp.task('js', () => {
-  let stream = gulp.src('src/**/*.js')
-    .pipe(babel({
-      presets: ['es2015'],
+gulp.task('sass', () => {
+  let stream = gulp.src(['src/scss/*.scss'])
+    .pipe(sass({outputStyle: 'expanded'}))  // nested, expanded, compact, compressed
+    .on('error', sass.logError)
+    .pipe(gulp.dest('src/css'))
+    .pipe(browserSync.reload({
+      stream: true
     }));
-if (isProd) stream = stream
-  .pipe(uglify());
-stream = stream
-  .pipe(assetsInjector.collect())
-  .pipe(gulp.dest(DIST));
-return stream;
+  if (isProd) {
+    stream = stream.pipe(sass({outputStyle: 'compressed'}))
+      .on('error', sass.logError)
+      .pipe(rev())
+      .pipe(gulp.dest('dist/css'))
+      .pipe(rev.manifest({
+        merge: true
+      }))
+      .pipe(gulp.dest('dist/rev/sass'));
+  }
 });
 
-gulp.task('html', ['css', 'js'], () => {
-  let stream = gulp.src('src/**/*.html', {base: 'src'})
+// inspect JS
+gulp.task('jshint', () => {
+  let stream = gulp.src('src/js/*.js')
+    .pipe(babel({
+      presets: ['es2015']
+    }))
+    .pipe(gulp.dest('src/js'));
+  if (isProd) {
+    stream.pipe(sourcemaps.init())
+      .pipe(uglify())
+      .pipe(rev())
+      .pipe(gulp.dest('dist/js'))
+      .pipe(rev.manifest({
+        merge: true
+      }))
+      .pipe(gulp.dest('dist/rev/js'));
+  }
+});
+
+// synchronize browser
+gulp.task('browserSync', () => {
+  browserSync.init({
+    server: {
+      baseDir: serverPath
+    }
+  })
+});
+
+// Watch Files For Changes
+gulp.task('watch', ['browserSync', 'html', 'sass', 'jshint'], function () {
+  gulp.watch(['src/**/*.js']).on('change', browserSync.reload);
+  gulp.watch(['src/**/*.html']).on('change', browserSync.reload);
+  gulp.watch('src/scss/*.scss', ['sass']);
+});
+
+// run dev build sequence
+gulp.task('dev', (callback) => {
+  runSequence(
+    ['watch', 'sass', 'jshint', 'browserSync'],
+    callback
+  )
+});
+gulp.task('default', () => {
+  runSequence('dev');
+});
+
+gulp.task('browser-sync', ['watch'], () => {
+  browserSync.init({
+    notify: false,
+    server: {
+      baseDir: serverPath,
+    },
+  });
+});
+
+// copy html and common resources to dist
+gulp.task('copyAssets', () => {
+  return gulp.src([
+    'src/**/*.html',
+    'src/assets/**',
+  ], {base: 'src'})
+    .pipe(gulp.dest(DIST));
+});
+
+// update all file names with md5-suffixed ones
+gulp.task('rev',  () => {
+  let stream = streamqueue({objectMode: true},
+    gulp.src(['dist/rev/**/*.json', 'dist/*.html'])
+      .pipe(revCollector({replaceReved: true}))
+      .pipe(gulp.dest('dist/')));
+});
+
+// optimize html (currently not in use)
+gulp.task('html', () => {
+  let stream = gulp.src('src/*.html', {base: 'src'})
     .pipe(assetsInjector.inject({
       link(html, asset) {
         return '/' + path.relative('src', asset);
@@ -58,64 +136,21 @@ gulp.task('html', ['css', 'js'], () => {
         return path.basename(html, path.extname(html)) === path.basename(asset, path.extname(asset));
       },
     }));
-if (isProd) stream = stream
-  .pipe(minifyHtml({
-    removeComments: true,
-    collapseWhitespace: true,
-    conservativeCollapse: true,
-    removeAttributeQuotes: true,
-  }));
-return stream
-  .pipe(gulp.dest(DIST));
-});
-
-gulp.task('copy', () => {
-  return gulp.src([
-    'src/index.html',
-    'src/assets/*',
-  ], {base: 'src'})
+  if (isProd) stream = stream
+    .pipe(minifyHtml({
+      removeComments: true,
+      collapseWhitespace: true,
+      conservativeCollapse: true,
+      removeAttributeQuotes: true,
+    }));
+  return stream
     .pipe(gulp.dest(DIST));
 });
 
-gulp.task('default', ['html', 'copy']);
 
-gulp.task('lint', () => {
-  return gulp.src('src/**/*.js')
-    .pipe(eslint())
-    .pipe(eslint.format())
-    .pipe(eslint.failAfterError());
+gulp.task('prod', function (callback) {
+  runSequence(
+    'clean', ['jshint', 'sass', 'copyAssets'], 'rev', 'browserSync',
+    callback
+  )
 });
-
-gulp.task('watch-js', ['js'], () => {
-  browserSync.reload();
-});
-
-gulp.task('watch-html', ['html'], () => {
-  browserSync.reload();
-});
-
-gulp.task('watch', ['default'], () => {
-  gulp.watch('src/**/*.scss', ['css']);
-gulp.watch('src/**/*.js', ['watch-js']);
-gulp.watch('src/**/*.html', ['watch-html']);
-});
-
-gulp.task('browser-sync', ['watch'], () => {
-  browserSync.init({
-  notify: false,
-  server: {
-    baseDir: DIST,
-  },
-});
-});
-
-function logError(err) {
-  gutil.log(err.toString());
-  return this.emit('end');
-}
-function importModuleSass(url, prev, done) {
-  return {
-    file: url.replace(/^~(\w.*)$/, (m, g) => path.resolve('node_modules', g)),
-};
-}
-
