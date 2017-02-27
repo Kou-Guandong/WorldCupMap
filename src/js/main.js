@@ -5,24 +5,95 @@ d3.json("../assets/world_countries.json", draw);
 function draw(geo_data) {
   
   var margin = 75,
-    width = 1400 - margin,
+    width = 1000 - margin,
     height = 600 - margin;
   
-  d3.select("body").append("h2").text("World Cup ");
-  
-  var svg = d3.select("body").append("svg").attr("width", width + margin).attr("height", height + margin).append('g').attr('class', 'map');
+  var svg = d3.select("#svgWrapper").append("svg").attr("width", width + margin).attr("height", height + margin).append('g').attr('class', 'map');
   
   var years = getYears(1930, 2015, 4, [1942, 1946]);
   
   
-  
   function plot_points(data) {
     
+    var nested = d3.nest().key((d) => d['date'].getUTCFullYear()).rollup(agg_year).entries(data);
+    
+    var attendance_max = d3.max(nested, function (d) {
+      return d.values['attendance'];
+    });
+    
+    var radius = d3.scale.sqrt().domain([0, attendance_max]).range([0, 15]);
+    
+    function key_func(d) {
+      return d['key'];
+    }
+    
+    svg.append('g').attr("class", "bubble").selectAll("circle")
+      .data(nested.sort((a, b) => b.values['attendance'] - a.values['attendance']), key_func)
+      .enter().append("circle").attr('cx', (d) => d.values['x'])
+      .attr('cy', (d) => d.values['y'])
+      .attr('r', (d) => radius(d.values['attendance']));
+    
+    function update(year) {
+      var filtered = nested.filter((d) => new Date(d['key']).getUTCFullYear() === year);
+      
+      d3.select("h2").text("World Cup " + year);
+      
+      var circles = svg.selectAll('circle').data(filtered, key_func);
+      
+      circles.exit().remove();
+      
+      circles.enter().append("circle").transition().duration(500).attr('cx', function (d) {
+        return d.values['x'];
+      }).attr('cy', function (d) {
+        return d.values['y'];
+      }).attr('r', function (d) {
+        return radius(d.values['attendance']);
+      });
+      
+      var countries = filtered[0].values['teams'];
+      
+      function update_countries(d) {
+        if (countries.indexOf(d.properties.name) !== -1) {
+          return "country country-fill";
+        } else {
+          return 'country';
+        }
+      }
+      
+      svg.selectAll('path').transition().duration(50)
+        .attr('class', update_countries)
+    }
+    
+    var year_idx = 0;
+    
+    var year_interval = setInterval(() => {
+      update(years[year_idx]);
+      
+      year_idx++;
+      
+      if (year_idx >= years.length) {
+        clearInterval(year_interval);
+        
+        var buttons = d3.select("body").append("div").attr("class", "years_buttons").selectAll("div").data(years).enter().append("div").text(function (d) {
+          return d;
+        });
+        
+        buttons.on("click", function (d) {
+          buttons.attr('class','');
+          d3.select(this).attr('class', 'active');
+          update(d);
+        });
+      }
+    }, 100);
+    
+    
     function agg_year(leaves) {
-  
       var projection = d3.geo.mercator().scale(140).translate([width / 2, height / 1.2]);
       var path = d3.geo.path().projection(projection);
-      svg.selectAll('path').data(geo_data.features).enter().append('path').attr('d', path).style('fill', 'lightBlue').style('stroke', 'black').style('stroke-width', 0.5);
+      svg.selectAll('path').data(geo_data.features).enter().append('path').attr('d', path)
+        .attr('class', 'country')
+        .style('stroke', 'black')
+        .style('stroke-width', 0.5);
       
       var total = d3.sum(leaves, function (d) {
         return d['attendance'];
@@ -55,84 +126,6 @@ function draw(geo_data) {
       };
     }
     
-    var nested = d3.nest().key(function (d) {
-      return d['date'].getUTCFullYear();
-    }).rollup(agg_year).entries(data);
-    
-    var attendance_max = d3.max(nested, function (d) {
-      return d.values['attendance'];
-    });
-    
-    var radius = d3.scale.sqrt().domain([0, attendance_max]).range([0, 15]);
-    
-    function key_func(d) {
-      return d['key'];
-    }
-    
-    svg.append('g').attr("class", "bubble").selectAll("circle").data(nested.sort(function (a, b) {
-      return b.values['attendance'] - a.values['attendance'];
-    }), key_func).enter().append("circle").attr('cx', function (d) {
-      return d.values['x'];
-    }).attr('cy', function (d) {
-      return d.values['y'];
-    }).attr('r', function (d) {
-      return radius(d.values['attendance']);
-    });
-    
-    function update(year) {
-      var filtered = nested.filter(function (d) {
-        return new Date(d['key']).getUTCFullYear() === year;
-      });
-      
-      d3.select("h2").text("World Cup " + year);
-      
-      var circles = svg.selectAll('circle').data(filtered, key_func);
-      
-      circles.exit().remove();
-      
-      circles.enter().append("circle").transition().duration(500).attr('cx', function (d) {
-        return d.values['x'];
-      }).attr('cy', function (d) {
-        return d.values['y'];
-      }).attr('r', function (d) {
-        return radius(d.values['attendance']);
-      });
-      
-      var countries = filtered[0].values['teams'];
-      
-      function update_countries(d) {
-        if (countries.indexOf(d.properties.name) !== -1) {
-          return "lightBlue";
-        } else {
-          return 'white';
-        }
-      }
-      
-      svg.selectAll('path').transition().duration(500).style('fill', update_countries).style('stroke', update_countries);
-    }
-    
-    var year_idx = 0;
-    
-    var year_interval = setInterval(function () {
-      update(years[year_idx]);
-      
-      year_idx++;
-      
-      if (year_idx >= years.length) {
-        clearInterval(year_interval);
-        
-        var buttons = d3.select("body").append("div").attr("class", "years_buttons").selectAll("div").data(years).enter().append("div").text(function (d) {
-          return d;
-        });
-        
-        buttons.on("click", function (d) {
-          d3.select(".years_buttons").selectAll("div").transition().duration(500).style("color", "black").style("background", "rgb(251, 201, 127)");
-          
-          d3.select(this).transition().duration(500).style("background", "lightBlue").style("color", "white");
-          update(d);
-        });
-      }
-    }, 100);
   }
   
   var format = d3.time.format("%d-%m-%Y (%H:%M h)");

@@ -33,6 +33,17 @@ if (isProd) {
 // delete 'dist' directory
 gulp.task('clean', () => del(DIST));
 
+const AUTOPREFIXER_BROWSERS = [
+  'Android 2.3',
+  'Android >= 4',
+  'Chrome >= 35',
+  'Firefox >= 31',
+  'Explorer >= 9',
+  'iOS >= 7',
+  'Opera >= 12',
+  'Safari >= 7.1',
+];
+
 gulp.task('sass', () => {
   let stream = gulp.src(['src/scss/*.scss'])
     .pipe(sass({outputStyle: 'expanded'}))  // nested, expanded, compact, compressed
@@ -44,6 +55,11 @@ gulp.task('sass', () => {
   if (isProd) {
     stream = stream.pipe(sass({outputStyle: 'compressed'}))
       .on('error', sass.logError)
+      .pipe(postCss([
+        autoprefixer({
+          browsers: AUTOPREFIXER_BROWSERS,
+        }),
+      ]))
       .pipe(rev())
       .pipe(gulp.dest('dist/css'))
       .pipe(rev.manifest({
