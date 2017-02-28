@@ -23,15 +23,37 @@ function draw(geo_data) {
     
     var radius = d3.scale.sqrt().domain([0, attendance_max]).range([0, 15]);
     
-    function key_func(d) {
-      return d['key'];
-    }
-    
     svg.append('g').attr("class", "bubble").selectAll("circle")
       .data(nested.sort((a, b) => b.values['attendance'] - a.values['attendance']), key_func)
       .enter().append("circle").attr('cx', (d) => d.values['x'])
       .attr('cy', (d) => d.values['y'])
       .attr('r', (d) => radius(d.values['attendance']));
+  
+    var year_idx = 0;
+  
+    var year_interval = setInterval(() => {
+      update(years[year_idx]);
+    
+      year_idx++;
+    
+      if (year_idx >= years.length) {
+        clearInterval(year_interval);
+      
+        var buttons = d3.select("body").append("div").attr("class", "years_buttons").selectAll("div").data(years).enter().append("div").text(function (d) {
+          return d;
+        });
+      
+        buttons.on("click", function (d) {
+          buttons.attr('class','');
+          d3.select(this).attr('class', 'active');
+          update(d);
+        });
+      }
+    }, 1000);
+  
+    function key_func(d) {
+      return d['key'];
+    }
     
     function update(year) {
       var filtered = nested.filter((d) => new Date(d['key']).getUTCFullYear() === year);
@@ -63,29 +85,6 @@ function draw(geo_data) {
       svg.selectAll('path').transition().duration(50)
         .attr('class', update_countries)
     }
-    
-    var year_idx = 0;
-    
-    var year_interval = setInterval(() => {
-      update(years[year_idx]);
-      
-      year_idx++;
-      
-      if (year_idx >= years.length) {
-        clearInterval(year_interval);
-        
-        var buttons = d3.select("body").append("div").attr("class", "years_buttons").selectAll("div").data(years).enter().append("div").text(function (d) {
-          return d;
-        });
-        
-        buttons.on("click", function (d) {
-          buttons.attr('class','');
-          d3.select(this).attr('class', 'active');
-          update(d);
-        });
-      }
-    }, 100);
-    
     
     function agg_year(leaves) {
       var projection = d3.geo.mercator().scale(140).translate([width / 2, height / 1.2]);

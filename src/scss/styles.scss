@@ -30,9 +30,9 @@ h2 {
 }
 
 .years_buttons {
-  position: fixed;
-  top: 5px;
-  left: 50px;
+  position: absolute;
+  top: 10px;
+  left: 2%;
   div {
     color: #000;
     background-color: $button-bg;
