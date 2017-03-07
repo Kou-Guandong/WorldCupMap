@@ -2,7 +2,7 @@
 
 d3.json("../assets/world_countries.json", draw);
 
-function draw(geo_data) {
+function draw(geoData) {
   
   var margin = 75,
     width = 1000 - margin,
@@ -12,55 +12,62 @@ function draw(geo_data) {
   
   var years = getYears(1930, 2015, 4, [1942, 1946]);
   
-  
-  function plot_points(data) {
+  function plotPoints(data) {
     
-    var nested = d3.nest().key((d) => d['date'].getUTCFullYear()).rollup(agg_year).entries(data);
+    var nested = d3.nest().key(function (d) {
+      return d['date'].getUTCFullYear();
+    }).rollup(aggregateYear).entries(data);
     
-    var attendance_max = d3.max(nested, function (d) {
+    var attendanceMax = d3.max(nested, function (d) {
       return d.values['attendance'];
     });
     
-    var radius = d3.scale.sqrt().domain([0, attendance_max]).range([0, 15]);
+    var radius = d3.scale.sqrt().domain([0, attendanceMax]).range([0, 15]);
     
-    svg.append('g').attr("class", "bubble").selectAll("circle")
-      .data(nested.sort((a, b) => b.values['attendance'] - a.values['attendance']), key_func)
-      .enter().append("circle").attr('cx', (d) => d.values['x'])
-      .attr('cy', (d) => d.values['y'])
-      .attr('r', (d) => radius(d.values['attendance']));
-  
-    var year_idx = 0;
-  
-    var year_interval = setInterval(() => {
-      update(years[year_idx]);
+    svg.append('g').attr("class", "bubble").selectAll("circle").data(nested.sort(function (a, b) {
+      return b.values['attendance'] - a.values['attendance'];
+    }), keyFunc).enter().append("circle").attr('cx', function (d) {
+      return d.values['x'];
+    }).attr('cy', function (d) {
+      return d.values['y'];
+    }).attr('r', function (d) {
+      return radius(d.values['attendance']);
+    });
     
-      year_idx++;
+    var yearCounter = 0;
     
-      if (year_idx >= years.length) {
-        clearInterval(year_interval);
+    var yearInterval = setInterval(function () {
+      update(years[yearCounter]);
       
+      yearCounter++;
+      
+      if (yearCounter >= years.length) {
+        clearInterval(yearInterval);
+        
         var buttons = d3.select("body").append("div").attr("class", "years_buttons").selectAll("div").data(years).enter().append("div").text(function (d) {
           return d;
         });
-      
+        
         buttons.on("click", function (d) {
-          buttons.attr('class','');
+          buttons.attr('class', '');
           d3.select(this).attr('class', 'active');
           update(d);
         });
       }
     }, 1000);
-  
-    function key_func(d) {
+    
+    function keyFunc(d) {
       return d['key'];
     }
     
     function update(year) {
-      var filtered = nested.filter((d) => new Date(d['key']).getUTCFullYear() === year);
+      var filtered = nested.filter(function (d) {
+        return new Date(d['key']).getUTCFullYear() === year;
+      });
       
       d3.select("h2").text("World Cup " + year);
       
-      var circles = svg.selectAll('circle').data(filtered, key_func);
+      var circles = svg.selectAll('circle').data(filtered, keyFunc);
       
       circles.exit().remove();
       
@@ -74,7 +81,7 @@ function draw(geo_data) {
       
       var countries = filtered[0].values['teams'];
       
-      function update_countries(d) {
+      function updateCountries(d) {
         if (countries.indexOf(d.properties.name) !== -1) {
           return "country country-fill";
         } else {
@@ -82,14 +89,19 @@ function draw(geo_data) {
         }
       }
       
-      svg.selectAll('path').transition().duration(50)
-        .attr('class', update_countries)
+      svg.selectAll('path').transition().duration(50).attr('class', updateCountries);
     }
     
-    function agg_year(leaves) {
-      var projection = d3.geo.mercator().scale(140).translate([width / 2, height / 1.2]);
+    function aggregateYear(leaves) {
+      var projection = d3.geo.mercator()
+        .scale(140)
+        .translate([width / 2, height / 1.2]);
       var path = d3.geo.path().projection(projection);
-      svg.selectAll('path').data(geo_data.features).enter().append('path').attr('d', path)
+      svg.selectAll('path')
+        .data(geoData.features)
+        .enter()
+        .append('path')
+        .attr('d', path)
         .attr('class', 'country')
         .style('stroke', 'black')
         .style('stroke-width', 0.5);
@@ -102,16 +114,15 @@ function draw(geo_data) {
         return projection([+d.long, +d.lat]);
       });
       
-      var center_x = d3.mean(coords, function (d) {
+      var centerX = d3.mean(coords, function (d) {
         return d[0];
       });
       
-      var center_y = d3.mean(coords, function (d) {
+      var centerY = d3.mean(coords, function (d) {
         return d[1];
       });
       
       var teams = d3.set();
-      
       leaves.forEach(function (d) {
         teams.add(d['team1']);
         teams.add(d['team2']);
@@ -119,12 +130,21 @@ function draw(geo_data) {
       
       return {
         'attendance': total,
-        'x': center_x,
-        'y': center_y,
+        'x': centerX,
+        'y': centerY,
         'teams': teams.values()
       };
     }
-    
+  }
+  
+  function getYears(start, end, step, except) {
+    var years = [];
+    var year = start;
+    while (year <= end) {
+      if (except.indexOf(year) < 0) years.push(year);
+      year += step;
+    }
+    return years;
   }
   
   var format = d3.time.format("%d-%m-%Y (%H:%M h)");
@@ -133,16 +153,5 @@ function draw(geo_data) {
     d['attendance'] = +d['attendance'];
     d['date'] = format.parse(d['date']);
     return d;
-  }, plot_points);
-}
-
-// separated pure functions
-function getYears(start, end, step, except) {
-  let years = [];
-  let year = start;
-  while (year <= end) {
-    if (except.indexOf(year) < 0) years.push(year);
-    year += step;
-  }
-  return years;
+  }, plotPoints);
 }
