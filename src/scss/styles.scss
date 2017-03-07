@@ -1,0 +1,58 @@
+
+@import '_variables.scss';
+@import '_common.scss';
+
+
+body {
+  margin: 0;
+}
+
+.wrapper {
+  margin: auto;
+  @include my-flex(row, center, center);
+}
+
+circle {
+  fill: $circle-fill;
+  stroke: black;
+  stroke-width: 0.7;
+  opacity: 0.7;
+}
+
+h2 {
+  text-align: center;
+  color: black;
+}
+
+@mixin active-button() {
+  color: #fff;
+  background-color: $button-active-bg;
+}
+
+.years_buttons {
+  position: absolute;
+  top: 10px;
+  left: 2%;
+  div {
+    color: #000;
+    background-color: $button-bg;
+    padding: 3px;
+    margin: 7px;
+    &.active {
+      @include  active-button();
+    }
+    transition-duration: 0.2s;
+    &:hover {
+      cursor: pointer;
+      @include  active-button();
+    }
+  }
+}
+
+.country {
+  fill: #fff;
+  &.country-fill {
+    fill: $country-fill;
+  }
+}
+

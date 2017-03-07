@@ -1,0 +1,39 @@
+@import "./functions";
+
+@mixin div-bg-img($path) {
+  @if ($path) {
+    background-image: url($path)
+  }
+  background-size: contain;
+  background-position: center;
+  background-repeat: no-repeat;
+}
+
+@mixin my-flex($direction, $justify, $align) {
+  display: flex;
+  flex-direction: $direction;
+  justify-content: $justify;
+  align-items: $align;
+}
+
+@mixin my-triangle($size, $color) {
+  $height: $size / 2;
+  width: 0;
+  height: 0;
+  display: inline-block;
+  border-bottom: $height solid $color;
+  border-left: $height solid transparent;
+  border-right: $height solid transparent;
+  margin: $size;
+}
+
+// PingFang font family groups
+$fonts: Thin Light Regular Medium Semibold Heavy;
+$PingFang: (100 "Thin") (300 "Light") (400 "Regular") (500 "Medium") (700 "Semibold") (800 "Heavy");
+
+@each $weight, $name in $PingFang {
+  .font-family-#{$name} {
+    font-family: Roboto,Helvetica Neue,Helvetica,Tahoma,Arial,Microsoft YaHei, PingFangSC-#{$name};
+    font-weight: $weight;
+  }
+}
